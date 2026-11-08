@@ -23,7 +23,7 @@ MODELS = {"Opus 5.5 — most accurate": "claude-opus-5-5",
 CSS = """
 <style>
 html, body, [class*="css"] { font-family: Inter, -apple-system, "Segoe UI", Roboto, sans-serif; }
-.block-container { padding-top: 1.6rem; max-width: 1180px; }
+.block-container { padding-top: 3.2rem; max-width: 1180px; }
 #MainMenu, footer { visibility: hidden; }
 .hero { background: radial-gradient(circle at 92% 18%, rgba(235,104,52,.55) 0, rgba(235,104,52,0) 28%),
         radial-gradient(circle at 78% 110%, rgba(27,175,122,.55) 0, rgba(27,175,122,0) 32%),

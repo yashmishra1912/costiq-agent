@@ -113,11 +113,18 @@ with st.sidebar:
     model = MODELS[model_label]
     workers = st.slider("Parallel company research", 1, 6, 2,
                         help="Higher is faster but more likely to hit API rate limits.")
-    if not stored_key and st.session_state.get("api_key"):
-        st.success("API key set for this session")
-        if st.button("Forget API key"):
-            st.session_state.pop("api_key", None)
-            st.rerun()
+    if not stored_key:
+        if st.session_state.get("api_key"):
+            st.success("API key set for this session")
+            if st.button("Forget API key"):
+                st.session_state.pop("api_key", None)
+                st.rerun()
+        else:
+            k = st.text_input("Anthropic API key", type="password", placeholder="sk-ant-…",
+                              help="Only needed when the app owner hasn't configured a key. Kept in this browser session only.")
+            if k.strip():
+                st.session_state.api_key = k.strip()
+                st.rerun()
     st.divider()
     st.markdown("### 🗂️ Analyses")
     runs = pipeline.Run.list_runs()
@@ -191,22 +198,9 @@ def stepper(active: int, done: set[int]) -> None:
 def need_key() -> bool:
     if api_key():
         return False
-    st.warning("Add your Anthropic API key to run the agent.")
+    st.error("The agent isn't configured yet: no Anthropic API key is set. "
+             "The app owner needs to add ANTHROPIC_API_KEY under Streamlit → App settings → Secrets.")
     return True
-
-
-def key_box() -> None:
-    if stored_key or st.session_state.get("api_key"):
-        return
-    with st.container(border=True):
-        c1, c2 = st.columns([3, 1], vertical_alignment="bottom")
-        k = c1.text_input("🔑 Anthropic API key", type="password", placeholder="sk-ant-…",
-                          help="Used only for this browser session; never stored on the server. "
-                               "Get one at console.anthropic.com.")
-        if c2.button("Use key", width="stretch") and k.strip():
-            st.session_state.api_key = k.strip()
-            st.rerun()
-        st.caption("Your key stays in this browser session only. A full analysis typically uses 60–100 web searches plus model tokens.")
 
 
 def agent_for(log):
@@ -250,7 +244,6 @@ if run is None or not run.has("identify"):
 <div class="tile t4"><div class="v">3</div><div class="l">savings scenarios, de-duplicated</div></div></div>""",
                 unsafe_allow_html=True)
     stepper(1, set())
-    key_box()
     with st.form("start", border=True):
         st.markdown("**Which company should we analyse?**")
         c1, c2 = st.columns([3, 2])
@@ -304,7 +297,6 @@ active = 4 if run.has("analysis") else (3 if has_all else 2)
 
 hero(f"{t.get('name')} · {t.get('industry', '')}" + (f" / {t.get('sub_industry')}" if t.get('sub_industry') else ""))
 stepper(active, done)
-key_box()
 
 # ---- company + competitors
 st.markdown('<div class="section-title">Company & competitor set</div>', unsafe_allow_html=True)

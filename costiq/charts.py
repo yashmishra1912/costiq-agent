@@ -24,14 +24,16 @@ FONT = "Inter, -apple-system, Segoe UI, Roboto, Arial, sans-serif"
 
 
 def _layout(fig: go.Figure, title: str, height: int = 360, **kw) -> go.Figure:
-    fig.update_layout(
+    base = dict(
         title={"text": title, "x": 0, "xanchor": "left", "font": {"size": 15, "color": INK}},
         font={"family": FONT, "size": 12, "color": INK2},
         paper_bgcolor=SURFACE, plot_bgcolor=SURFACE, height=height,
         margin={"l": 10, "r": 20, "t": 50, "b": 10},
         hoverlabel={"bgcolor": "white", "font": {"color": INK}},
         legend={"orientation": "h", "y": -0.15, "x": 0},
-        bargap=0.35, **kw)
+        bargap=0.35)
+    base.update(kw)
+    fig.update_layout(**base)
     fig.update_xaxes(gridcolor=GRID, zeroline=False, linecolor=GRID, automargin=True)
     fig.update_yaxes(gridcolor=GRID, zeroline=False, linecolor=GRID, automargin=True)
     return fig
@@ -271,3 +273,91 @@ def revenue_trend(target_cr: dict, comp_crs: list[dict], ccy: str, div: float = 
                              hovertemplate=target_cr["name"] + " %{customdata}: %{y:,.0f}<extra></extra>"))
     return _layout(fig, f"Revenue by financial-year end date ({ccy})",
                    height=380)
+
+
+# ------------------------------------------------------------ infographics
+GOOD, PAR, BAD = "#0ca30c", "#b9b8b2", "#d03b3b"
+SEQ = ["#9ec5f4", "#3987e5", "#1c5cab"]  # sequential blue: conservative -> optimistic
+
+
+def competitiveness_score(rows: list[dict]) -> float | None:
+    """Share of benchmarked metrics where the target is better (1) or at par (0.5) vs peers."""
+    b = sum(1 for r in rows if r["status"] == "Better")
+    p = sum(1 for r in rows if r["status"] == "At par")
+    w = sum(1 for r in rows if r["status"] == "Worse")
+    n = b + p + w
+    return round((b + 0.5 * p) / n * 100) if n else None
+
+
+def score_gauge(rows: list[dict], height: int = 270) -> go.Figure | None:
+    s = competitiveness_score(rows)
+    if s is None:
+        return None
+    fig = go.Figure(go.Indicator(
+        mode="gauge+number", value=s, number={"suffix": "/100", "font": {"size": 34, "color": INK}},
+        gauge={"axis": {"range": [0, 100], "tickwidth": 1, "tickcolor": MUTED, "tickvals": [0, 40, 60, 100]},
+               "bar": {"color": INK, "thickness": 0.22},
+               "steps": [{"range": [0, 40], "color": "#f6c9c9"}, {"range": [40, 60], "color": "#fbe7b5"},
+                         {"range": [60, 100], "color": "#cdeccd"}],
+               "borderwidth": 0}))
+    return _layout(fig, "Cost competitiveness score<br><span style='font-size:11px;color:#8a8984'>"
+                        "share of metrics better (1) or at par (½) vs peer median · &lt;40 lagging · 40–60 mixed · &gt;60 ahead</span>",
+                   height=height, margin={"l": 30, "r": 30, "t": 82, "b": 10})
+
+
+def status_donut(rows: list[dict], height: int = 270) -> go.Figure | None:
+    counts = [("Better", GOOD), ("At par", PAR), ("Worse", BAD)]
+    vals = [sum(1 for r in rows if r["status"] == k) for k, _ in counts]
+    if not sum(vals):
+        return None
+    fig = go.Figure(go.Pie(
+        labels=[f"{k} than peers" if k != "At par" else "At par" for k, _ in counts], values=vals, hole=0.62,
+        marker={"colors": [c for _, c in counts], "line": {"color": SURFACE, "width": 3}},
+        textinfo="value", textfont={"size": 14, "color": "white"}, sort=False,
+        hovertemplate="%{label}: %{value} metrics<extra></extra>"))
+    fig.add_annotation(text=f"<b>{sum(vals)}</b><br>metrics", showarrow=False, font={"size": 14, "color": INK})
+    fig.update_layout(legend={"orientation": "h", "y": -0.08, "x": 0.5, "xanchor": "center"})
+    return _layout(fig, "Benchmark scorecard", height=height)
+
+
+def revenue_donut(target_cr: dict, ccy_symbol: str = "₹", height: int = 270) -> go.Figure | None:
+    """Where every 100 units of revenue go (latest FY, target)."""
+    if not target_cr["years"]:
+        return None
+    y = target_cr["years"][-1]
+    raw, der = y["raw"], y["derived"]
+    rev, cogs, emp = raw.get("revenue"), der.get("cogs_used"), raw.get("employee_cost")
+    ebitda, dep, fin = der.get("ebitda_used"), raw.get("depreciation"), raw.get("finance_cost")
+    if None in (rev, cogs, emp, ebitda, dep, fin) or not rev:
+        return None
+    parts = [("Materials / COGS", cogs), ("Employees", emp), ("Other operating", rev - ebitda - cogs - emp),
+             ("Depreciation", dep), ("Finance cost", fin), ("Pre-tax profit & other", ebitda - dep - fin)]
+    parts = [(k, v / rev * 100) for k, v in parts]
+    fig = go.Figure(go.Pie(
+        labels=[k for k, _ in parts], values=[max(v, 0) for _, v in parts], hole=0.55, sort=False,
+        marker={"colors": CATS[:6], "line": {"color": SURFACE, "width": 3}},
+        texttemplate="%{value:.0f}", textfont={"size": 12, "color": "white"},
+        hovertemplate="%{label}: " + ccy_symbol + "%{value:.1f} of every " + ccy_symbol + "100<extra></extra>"))
+    fig.add_annotation(text=f"<b>{ccy_symbol}100</b><br>of revenue", showarrow=False, font={"size": 13, "color": INK},
+                       x=0.34, y=0.5, xref="paper", yref="paper")
+    fig = _layout(fig, f"Where every {ccy_symbol}100 of revenue goes ({y['fy']})", height=height)
+    fig.update_layout(legend={"orientation": "v", "x": 0.72, "y": 0.5, "font": {"size": 11}},
+                      margin={"l": 0, "r": 0, "t": 50, "b": 10})
+    fig.update_traces(domain={"x": [0, 0.68]})
+    return fig
+
+
+def scenario_bars(sv: dict, unit_label: str, div: float = 1.0, height: int = 270) -> go.Figure | None:
+    p = sv.get("totals", {}).get("pnl", {})
+    if not p or not any(p.values()):
+        return None
+    ks = ["Conservative", "Moderate", "Optimistic"]
+    vals = [p.get(k, 0) / div for k in ks]
+    fig = go.Figure(go.Bar(
+        x=ks, y=vals, marker={"color": SEQ, "line": {"color": SURFACE, "width": 2}},
+        text=[f"{v:,.0f}" for v in vals], textposition="outside", cliponaxis=False,
+        textfont={"size": 14, "color": INK}, hovertemplate="%{x}: %{y:,.0f} " + unit_label + "<extra></extra>"))
+    fig = _layout(fig, f"Potential annual savings ({unit_label})", height=height, showlegend=False, bargap=0.45)
+    fig.update_yaxes(visible=False)
+    fig.update_xaxes(showgrid=False)
+    return fig

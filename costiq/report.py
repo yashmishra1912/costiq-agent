@@ -105,12 +105,16 @@ def render(ident: dict, fin: dict, ds: dict, an: dict, plotly_inline: bool = Tru
                            if tot.get("ebitda_uplift_pct_moderate") is not None else "")
                         + "</div><p class='muted'>Potential, not guaranteed, savings. P&amp;L initiatives only; "
                           "one-time working-capital cash release is shown in section 8.</p>")
-    S.append(f"""<section id="s1"><h2><span>1</span>Executive summary</h2>
+    S.append(f"""<section id="s1" style="--accent:#2a78d6"><h2><span>1</span>Executive summary</h2>
 <p class="lead">{esc(es.get('overview'))}</p>
 <h3>Overall cost competitiveness</h3><p>{esc(es.get('overall_assessment'))}</p>
 <h3>Three most important insights</h3>{ul(es.get('top_insights'), 'insights')}
 <h3>Key findings</h3>{ul(es.get('key_findings'))}
-<h3>Estimated savings opportunity</h3>{savings_line}</section>""")
+<h3>Estimated savings opportunity</h3>{savings_line}
+<h3>At a glance</h3><div class="info-grid">
+{fig_html(charts.score_gauge(rows))}{fig_html(charts.status_donut(rows))}
+{fig_html(charts.revenue_donut(tr, '₹' if ccy.upper() == 'INR' else ccy + ' '))}{fig_html(charts.scenario_bars(sv, mlabel, div))}
+</div></section>""")
 
     # ----------------------------------------------------- 2. overview
     def rev_of(name):
@@ -127,7 +131,7 @@ def render(ident: dict, fin: dict, ds: dict, an: dict, plotly_inline: bool = Tru
                       f"<td class='num'>{m(rv)}<br><span class='muted'>{esc(fy)}</span></td>"
                       f"<td>{esc(c.get('selection_reason'))}</td><td>{esc(c.get('comparability_notes'))}</td></tr>")
     trv, tfy = rev_of(tname)
-    S.append(f"""<section id="s2"><h2><span>2</span>Company and competitor overview</h2>
+    S.append(f"""<section id="s2" style="--accent:#eb6834"><h2><span>2</span>Company and competitor overview</h2>
 <div class="profile"><div><h3>{esc(tname)}</h3><p>{esc(an.get('company_profile') or t.get('description'))}</p></div>
 <table class="kv"><tr><th>Headquarters</th><td>{esc(t.get('headquarters'))}</td></tr>
 <tr><th>Industry</th><td>{esc(t.get('industry'))} / {esc(t.get('sub_industry'))}</td></tr>
@@ -166,7 +170,7 @@ def render(ident: dict, fin: dict, ds: dict, an: dict, plotly_inline: bool = Tru
                       + "".join(f"<td class='num'>{fmt_ratio(k, y['ratios'].get(k))}</td>"
                                 for k in ("gross_margin", "ebitda_margin", "net_margin", "asset_turnover", "ccc_days"))
                       + "</tr>")
-    S.append(f"""<section id="s3"><h2><span>3</span>Financial performance</h2>
+    S.append(f"""<section id="s3" style="--accent:#1baf7a"><h2><span>3</span>Financial performance</h2>
 <p>{esc(an.get('financial_performance_commentary'))}</p>
 <h3>{esc(tname)} - three-year summary ({mlabel})</h3>
 <table class="data"><thead><tr><th></th>{head}</tr></thead><tbody>{body}</tbody></table>
@@ -192,7 +196,7 @@ def render(ident: dict, fin: dict, ds: dict, an: dict, plotly_inline: bool = Tru
     trend_keys = [k for k in ("cogs_pct", "employee_pct", "sd_pct", "admin_pct", "other_exp_pct",
                               "depreciation_pct", "finance_pct", "manufacturing_pct", "marketing_pct")
                   if any(y["ratios"].get(k) is not None for y in yrs)][:6]
-    S.append(f"""<section id="s4"><h2><span>4</span>Cost structure analysis</h2>
+    S.append(f"""<section id="s4" style="--accent:#eda100"><h2><span>4</span>Cost structure analysis</h2>
 <p>{esc(an.get('cost_structure_commentary'))}</p>
 <h3>{esc(tname)} cost lines ({mlabel}, % of revenue in brackets)</h3>
 <table class="data"><thead><tr><th></th>{head}</tr></thead><tbody>{body}</tbody></table>
@@ -218,7 +222,7 @@ def render(ident: dict, fin: dict, ds: dict, an: dict, plotly_inline: bool = Tru
                f"<td><span class='pill {STATUS_CLS.get(st, 'ctx')}'>{esc(st)}</span></td></tr>")
     key_bars = [r for r in rows if r["kind"] == "cost" and r["target"] is not None and r["peer_count"] >= 2][:8]
     gaps = ds["candidate_gaps"]
-    S.append(f"""<section id="s5"><h2><span>5</span>Competitive cost benchmarking</h2>
+    S.append(f"""<section id="s5" style="--accent:#e87ba4"><h2><span>5</span>Competitive cost benchmarking</h2>
 <p>{esc(an.get('benchmarking_commentary'))}</p>
 <p class="muted">Latest reported year for each company. "Best" uses the nominal direction (lower cost / higher margin);
 rows marked context-dependent have no automatic verdict because a lower value is not necessarily better
@@ -251,7 +255,7 @@ rows marked context-dependent have no automatic verdict because a lower value is
 <div><h4>Hypotheses (AI-generated, unverified)</h4>{linked(g.get('hypotheses'))}</div></div>
 <p><b>Root-cause factors:</b> {esc(', '.join(g.get('root_cause_factors') or []))}</p>
 <p><b>Evidence needed to validate:</b></p>{ul(g.get('validation_evidence_needed'))}</div>"""
-    S.append(f"""<section id="s6"><h2><span>6</span>Root cause analysis</h2>
+    S.append(f"""<section id="s6" style="--accent:#6250d6"><h2><span>6</span>Root cause analysis</h2>
 {cards or '<p class="muted">No material adverse cost gaps were identified versus the peer median.</p>'}</section>""")
 
     # --------------------------------------------- 7. recommendations
@@ -267,7 +271,7 @@ rows marked context-dependent have no automatic verdict because a lower value is
 <tr><th>Complexity</th><td>{esc(r.get('implementation_complexity'))}</td></tr>
 <tr><th>Timeline</th><td>{esc(r.get('timeline'))}</td></tr>
 <tr><th>Risks &amp; dependencies</th><td>{esc(r.get('risks_dependencies'))}</td></tr></table></div>"""
-    S.append(f"""<section id="s7"><h2><span>7</span>Cost optimisation opportunities</h2>{rc}
+    S.append(f"""<section id="s7" style="--accent:#2a78d6"><h2><span>7</span>Cost optimisation opportunities</h2>{rc}
 {fig_html(charts.priority_matrix(recs))}</section>""")
 
     # ------------------------------------------------ 8. financial impact
@@ -289,7 +293,7 @@ rows marked context-dependent have no automatic verdict because a lower value is
     if any(tc.values()):
         sb += ("<tr class='total'><td colspan='7'>One-time working-capital cash release</td>"
                + "".join(f"<td class='num'>{tc.get(k, 0) / div:,.0f}</td>" for k in ("Conservative", "Moderate", "Optimistic")) + "</tr>")
-    S.append(f"""<section id="s8"><h2><span>8</span>Financial impact</h2>
+    S.append(f"""<section id="s8" style="--accent:#008300"><h2><span>8</span>Financial impact</h2>
 <p class="muted">All figures are <b>potential savings, not guaranteed savings</b>, in {mlabel}, based on the target's latest-year revenue of {m(rev_latest)}.</p>
 <div class="scroll"><table class="data"><thead><tr><th>Initiative</th><th>Cost line</th><th>Type</th><th>Current cost</th><th>At peer median</th>
 <th>Gap</th><th>Addressable</th><th>Conservative</th><th>Moderate</th><th>Optimistic</th></tr></thead><tbody>{sb}</tbody></table></div>
@@ -303,7 +307,7 @@ rows marked context-dependent have no automatic verdict because a lower value is
 
     # ---------------------------------------------------- 9. roadmap
     rm = an.get("roadmap", {})
-    S.append(f"""<section id="s9"><h2><span>9</span>Strategic roadmap</h2><div class="road">
+    S.append(f"""<section id="s9" style="--accent:#eb6834"><h2><span>9</span>Strategic roadmap</h2><div class="road">
 {''.join(f'<div class="phase"><h3>{esc(p)}</h3>{ul(rm.get(p))}</div>' for p in ("0-3 months", "3-6 months", "6-12 months"))}
 </div></section>""")
 
@@ -339,7 +343,7 @@ rows marked context-dependent have no automatic verdict because a lower value is
     deriv = sorted({n for y in tr["years"] for n in y["notes"]})
     defs = "".join(f"<tr><td>{esc(v[0])}</td><td>{esc(v[1])}</td></tr>" for v in RATIOS.values())
     errs = fin.get("errors") or {}
-    S.append(f"""<section id="s10"><h2><span>10</span>Sources and methodology</h2>
+    S.append(f"""<section id="s10" style="--accent:#52514e"><h2><span>10</span>Sources and methodology</h2>
 <h3>Reporting periods, basis and currency</h3>
 <table class="data"><thead><tr><th>Company</th><th>Years used</th><th>Basis</th><th>Expense classification</th>
 <th>Reported in</th><th>FX to {esc(ccy)} (avg / close)</th></tr></thead><tbody>{periods}</tbody></table>
@@ -375,14 +379,14 @@ AI-generated hypotheses are labelled as such and should be validated before acti
 CSS = """
 :root{--ink:#0b0b0b;--ink2:#52514e;--muted:#8a8984;--line:#e6e5e1;--bg:#fafaf8;--card:#fff;--blue:#2a78d6;--red:#d03b3b;--green:#0a7f0a}
 *{box-sizing:border-box}body{margin:0;font:14px/1.55 Inter,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;color:var(--ink);background:var(--bg)}
-header{background:#0d2a4a;color:#fff;padding:32px 40px 0}header h1{margin:4px 0;font-size:30px}header p{margin:0 0 18px;color:#c9d6e6}
+header{background:linear-gradient(120deg,#0d2a4a 0%,#1c5cab 55%,#6250d6 100%);color:#fff;padding:32px 40px 0}header h1{margin:4px 0;font-size:30px}header p{margin:0 0 18px;color:#c9d6e6}
 .brand{font-weight:700;letter-spacing:.12em;font-size:12px;color:#86b6ef;text-transform:uppercase}
 nav{display:flex;flex-wrap:wrap;gap:2px}nav a{color:#c9d6e6;text-decoration:none;padding:8px 12px;font-size:12px;border-radius:6px 6px 0 0}
 nav a:hover{background:#163b63;color:#fff}
 main{max-width:1180px;margin:0 auto;padding:10px 24px 40px}
-section{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:26px 30px;margin:22px 0;page-break-before:always}
+section{background:var(--card);border:1px solid var(--line);border-top:4px solid var(--accent,var(--blue));border-radius:10px;padding:26px 30px;margin:22px 0;page-break-before:always}
 h2{font-size:21px;margin:0 0 14px;display:flex;align-items:center;gap:12px}
-h2 span{background:var(--blue);color:#fff;border-radius:50%;width:30px;height:30px;display:inline-flex;align-items:center;justify-content:center;font-size:14px}
+h2 span{background:var(--accent,var(--blue));color:#fff;border-radius:50%;width:30px;height:30px;display:inline-flex;align-items:center;justify-content:center;font-size:14px}
 h3{font-size:15px;margin:22px 0 8px}h4{font-size:13px;margin:0 0 6px;color:var(--ink2)}
 .lead{font-size:16px}.muted{color:var(--muted);font-size:12px}.nd{color:var(--muted);font-style:italic}
 .note{background:#fff8e6;border-left:3px solid #eda100;padding:8px 12px}
@@ -401,7 +405,7 @@ table.kv th{text-align:left;color:var(--ink2);font-weight:600;padding:5px 12px 5
 .pill.good{background:#e3f4e3;color:var(--green)}.pill.good:before{content:"▲ "}
 .pill.bad{background:#fbe7e7;color:var(--red)}.pill.bad:before{content:"▼ "}
 .pill.par{background:#eef0f3;color:var(--ink2)}.pill.par:before{content:"● "}.pill.ctx{background:#f1f0ec;color:var(--ink2)}
-.kpis{display:flex;gap:14px;flex-wrap:wrap}.kpi{flex:1;min-width:170px;border:1px solid var(--line);border-radius:8px;padding:14px}
+.kpis{display:flex;gap:14px;flex-wrap:wrap}.kpi{flex:1;min-width:170px;border-radius:10px;padding:16px;color:#fff}.kpi:nth-child(1){background:linear-gradient(135deg,#86b6ef,#3987e5)}.kpi:nth-child(2){background:linear-gradient(135deg,#3987e5,#1c5cab)}.kpi:nth-child(3){background:linear-gradient(135deg,#1c5cab,#0d366b)}.kpi:nth-child(4){background:linear-gradient(135deg,#1baf7a,#0a7f55)}.kpi .kval{color:#fff}.kpi .kl{color:rgba(255,255,255,.9)}
 .kval{font-size:24px;font-weight:700;color:var(--blue)}.kl{font-size:12px;color:var(--ink2)}
 ul.insights li{font-size:15px;margin-bottom:6px}
 .card{border:1px solid var(--line);border-radius:8px;padding:16px 20px;margin:14px 0}
@@ -412,9 +416,9 @@ ul.insights li{font-size:15px;margin-bottom:6px}
 .ev ul{padding-left:18px;margin:0}.ev li{font-size:12.5px;margin-bottom:4px}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .road{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}.phase{border-top:4px solid var(--blue);background:#f6f9fd;border-radius:6px;padding:4px 16px 10px}
-.chart{margin:12px 0}table.src td{font-size:12px;word-break:break-all}
+.chart{margin:12px 0}.info-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px 18px}.info-grid .chart{border:1px solid var(--line);border-radius:10px;padding:6px 10px;margin:6px 0}table.src td{font-size:12px;word-break:break-all}
 footer{max-width:1180px;margin:0 auto 40px;padding:0 24px;color:var(--muted);font-size:12px}
 a{color:var(--blue)}
-@media(max-width:800px){.profile,.ev,.grid2,.road{grid-template-columns:1fr}section{padding:18px}}
+@media(max-width:800px){.profile,.ev,.grid2,.road,.info-grid{grid-template-columns:1fr}section{padding:18px}}
 @media print{body{background:#fff}header nav{display:none}section{border:none;margin:0}}
 """

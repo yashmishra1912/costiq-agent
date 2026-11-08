@@ -10,7 +10,7 @@ import time
 import pandas as pd
 import streamlit as st
 
-from costiq import pipeline, report
+from costiq import charts, pipeline, report
 from costiq.schema import LINE_ITEMS, PCT_RATIOS
 
 st.set_page_config(page_title="CostIQ · Cost Intelligence", page_icon="📊", layout="wide",
@@ -25,8 +25,10 @@ CSS = """
 html, body, [class*="css"] { font-family: Inter, -apple-system, "Segoe UI", Roboto, sans-serif; }
 .block-container { padding-top: 1.6rem; max-width: 1180px; }
 #MainMenu, footer { visibility: hidden; }
-.hero { background: linear-gradient(135deg, #0d2a4a 0%, #16457a 100%); color: #fff; border-radius: 14px;
-        padding: 26px 30px; margin-bottom: 18px; }
+.hero { background: radial-gradient(circle at 92% 18%, rgba(235,104,52,.55) 0, rgba(235,104,52,0) 28%),
+        radial-gradient(circle at 78% 110%, rgba(27,175,122,.55) 0, rgba(27,175,122,0) 32%),
+        linear-gradient(120deg, #0d2a4a 0%, #1c5cab 55%, #6250d6 100%);
+        color: #fff; border-radius: 16px; padding: 30px 32px; margin: 8px 0 18px; }
 .hero .brand { font-size: 12px; font-weight: 700; letter-spacing: .14em; color: #86b6ef; text-transform: uppercase; }
 .hero h1 { color: #fff; font-size: 30px; margin: 4px 0 6px; padding: 0; line-height: 1.2; }
 .hero p { color: #c9d6e6; margin: 0; font-size: 15px; }
@@ -34,15 +36,25 @@ html, body, [class*="css"] { font-family: Inter, -apple-system, "Segoe UI", Robo
 .step { flex: 1; min-width: 150px; border-radius: 10px; padding: 10px 14px; border: 1px solid #e6e5e1;
         background: #fafaf8; font-size: 13px; color: #8a8984; }
 .step b { display: block; font-size: 14px; color: #52514e; }
-.step.done { background: #eef7ee; border-color: #cfe8cf; } .step.done b { color: #0a7f0a; }
-.step.active { background: #eef5fd; border-color: #2a78d6; box-shadow: 0 0 0 1px #2a78d6 inset; }
-.step.active b { color: #1c5cab; }
+.step { border-top: 4px solid var(--c); }
+.step.done { background: #eef7ee; border-color: #cfe8cf; border-top-color: var(--c); } .step.done b { color: #0a7f0a; }
+.step.active { background: #fff; box-shadow: 0 4px 14px rgba(13,42,74,.12); border-color: var(--c); }
+.step.active b { color: var(--c); }
+.tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 6px 0 18px; }
+.tile { border-radius: 14px; padding: 16px 18px; color: #fff; }
+.tile .v { font-size: 30px; font-weight: 800; line-height: 1.1; } .tile .l { font-size: 13px; opacity: .92; }
+.t1 { background: linear-gradient(135deg, #3987e5, #1c5cab); } .t2 { background: linear-gradient(135deg, #f08a5d, #d95926); }
+.t3 { background: linear-gradient(135deg, #2cc28c, #0f8a5f); } .t4 { background: linear-gradient(135deg, #8a7cf0, #5240c4); }
+.kpi { border-radius: 14px; padding: 16px 18px; color: #fff; height: 100%; }
+.kpi .v { font-size: 26px; font-weight: 800; } .kpi .l { font-size: 12.5px; opacity: .92; } .kpi .s { font-size: 12px; opacity: .85; margin-top: 2px; }
+@media (max-width: 760px) { .tiles { grid-template-columns: 1fr 1fr; } }
 .card { border: 1px solid #e6e5e1; border-radius: 12px; padding: 16px 18px; background: #fff; height: 100%; }
 .card h4 { margin: 0 0 6px; font-size: 15px; }
 .card .muted, .muted { color: #8a8984; font-size: 12.5px; }
 .card p { font-size: 13.5px; margin: 4px 0 0; color: #3a3936; }
-.how { border: 1px solid #e6e5e1; border-radius: 12px; padding: 16px 18px; background: #fafaf8; height: 100%; }
-.how .n { display: inline-flex; width: 26px; height: 26px; border-radius: 50%; background: #2a78d6; color: #fff;
+.how { border: 1px solid #e6e5e1; border-top: 4px solid var(--c); border-radius: 12px; padding: 16px 18px; background: #fff; height: 100%; }
+.how .ic { font-size: 26px; margin-bottom: 4px; }
+.how .n { display: inline-flex; width: 26px; height: 26px; border-radius: 50%; background: var(--c); color: #fff;
           align-items: center; justify-content: center; font-weight: 700; font-size: 13px; margin-bottom: 6px; }
 .how b { display: block; margin-bottom: 4px; } .how span { font-size: 13px; color: #52514e; }
 .tag { display: inline-block; background: #f1f0ec; color: #52514e; border-radius: 10px; padding: 1px 9px;
@@ -162,14 +174,17 @@ def run_bg(fn, *args, label: str = "Working…", **kwargs):
     return box.get("result")
 
 
+STEP_COLORS = ["#2a78d6", "#eb6834", "#1baf7a", "#6250d6"]
+
+
 def stepper(active: int, done: set[int]) -> None:
-    steps = [("Identify", "Company & 5 competitors"), ("Collect data", "3 years of financials"),
-             ("Benchmark", "Ratios, gaps, root causes"), ("Report", "Recommendations & savings")]
+    steps = [("🔎 Identify", "Company & 5 competitors"), ("📥 Collect data", "3 years of financials"),
+             ("📊 Benchmark", "Ratios, gaps, root causes"), ("💡 Report", "Recommendations & savings")]
     html = '<div class="stepper">'
-    for i, (t, s) in enumerate(steps, 1):
+    for i, ((t, sub), col) in enumerate(zip(steps, STEP_COLORS), 1):
         cls = "done" if i in done else ("active" if i == active else "")
-        mark = "✓ " if i in done else f"{i} · "
-        html += f'<div class="step {cls}"><b>{mark}{t}</b>{s}</div>'
+        mark = "✓ " if i in done else ""
+        html += f'<div class="step {cls}" style="--c:{col}"><b>{mark}{t}</b>{sub}</div>'
     st.markdown(html + "</div>", unsafe_allow_html=True)
 
 
@@ -228,6 +243,12 @@ run = pipeline.Run(st.session_state["run_id"]) if st.session_state.get("run_id")
 # ---------------------------------------------------- landing / step 1
 if run is None or not run.has("identify"):
     hero()
+    st.markdown("""<div class="tiles">
+<div class="tile t1"><div class="v">5</div><div class="l">direct competitors benchmarked</div></div>
+<div class="tile t2"><div class="v">3 yrs</div><div class="l">of consolidated financials</div></div>
+<div class="tile t3"><div class="v">23</div><div class="l">cost & efficiency ratios</div></div>
+<div class="tile t4"><div class="v">3</div><div class="l">savings scenarios, de-duplicated</div></div></div>""",
+                unsafe_allow_html=True)
     stepper(1, set())
     key_box()
     with st.form("start", border=True):
@@ -253,12 +274,21 @@ if run is None or not run.has("identify"):
 
     st.markdown('<div class="section-title">How it works</div>', unsafe_allow_html=True)
     cols = st.columns(4)
-    how = [("Identify", "Finds the company and five direct, comparable competitors with public financials."),
-           ("Collect", "Reads filings for three years of consolidated statements — every figure sourced, nothing invented."),
-           ("Benchmark", "Computes 23 cost & efficiency ratios in code and pinpoints where the company overspends."),
-           ("Recommend", "Researches root causes and sizes five savings initiatives in three scenarios.")]
-    for i, (c, (t, d)) in enumerate(zip(cols, how), 1):
-        c.markdown(f'<div class="how"><div class="n">{i}</div><b>{t}</b><span>{d}</span></div>', unsafe_allow_html=True)
+    how = [("🔎", "Identify", "Finds the company and five direct, comparable competitors with public financials."),
+           ("📥", "Collect", "Reads filings for three years of consolidated statements — every figure sourced, nothing invented."),
+           ("📊", "Benchmark", "Computes 23 cost & efficiency ratios in code and pinpoints where the company overspends."),
+           ("💡", "Recommend", "Researches root causes and sizes five savings initiatives in three scenarios.")]
+    for c, (ic, t, d), col in zip(cols, how, STEP_COLORS):
+        c.markdown(f'<div class="how" style="--c:{col}"><div class="ic">{ic}</div><b>{t}</b><span>{d}</span></div>',
+                   unsafe_allow_html=True)
+    st.markdown('<div class="section-title">What your report includes</div>', unsafe_allow_html=True)
+    g1, g2, g3, g4 = st.columns(4)
+    for col, (ic, t, d) in zip((g1, g2, g3, g4), [
+            ("🎯", "Competitiveness score", "One 0–100 score for how the cost base stacks up against peers"),
+            ("🍩", "Where the money goes", "How each ₹100 of revenue splits across cost lines"),
+            ("🌡️", "Benchmark heatmap", "Every company and metric, coloured by gap to the peer median"),
+            ("🪜", "Savings waterfall", "Five sized initiatives in conservative, moderate and optimistic cases")]):
+        col.markdown(f'<div class="card"><h4>{ic} {t}</h4><p>{d}</p></div>', unsafe_allow_html=True)
     st.markdown('<p class="muted" style="margin-top:18px">A full analysis takes about 10–25 minutes. '
                 'Figures come from public sources and should be checked before you act on them.</p>', unsafe_allow_html=True)
     st.stop()
@@ -381,20 +411,46 @@ st.markdown('<div class="section-title">Results</div>', unsafe_allow_html=True)
 div, mlabel = report.money_unit(ds["base_currency"])
 tot = an.get("savings", {}).get("totals", {})
 bench = {r["key"]: r for r in ds["benchmark"]}
-m1, m2, m3, m4 = st.columns(4)
 em = bench.get("ebitda_margin", {})
-m1.metric("EBITDA margin (latest)", fmt_r("ebitda_margin", em.get("target")),
-          delta=(f"{(em['target'] - em['median']) * 100:+.1f} pp vs peer median"
-                 if em.get("target") is not None and em.get("median") is not None else None))
+score = charts.competitiveness_score(ds["benchmark"])
 worse = sum(1 for r in ds["benchmark"] if r["status"] == "Worse")
 better = sum(1 for r in ds["benchmark"] if r["status"] == "Better")
-m2.metric("Metrics worse / better than peers", f"{worse} / {better}")
-m3.metric(f"Potential savings p.a. (moderate)", f"{tot.get('pnl', {}).get('Moderate', 0) / div:,.0f}",
-          help=f"{mlabel}. Conservative {tot.get('pnl', {}).get('Conservative', 0) / div:,.0f} · "
-               f"Optimistic {tot.get('pnl', {}).get('Optimistic', 0) / div:,.0f}. Potential, not guaranteed.")
-m4.metric("Margin uplift (moderate)",
-          f"{tot['ebitda_uplift_pct_moderate']:.1f} pp" if tot.get("ebitda_uplift_pct_moderate") is not None else "–")
-st.caption(f"Savings in {mlabel}. Potential, not guaranteed.")
+pnl = tot.get("pnl", {})
+dev = ((em["target"] - em["median"]) * 100) if em.get("target") is not None and em.get("median") is not None else None
+tiles = [
+    ("t1", f"{score}/100" if score is not None else "–", "Cost competitiveness score", f"{better} better · {worse} worse than peers"),
+    ("t4", fmt_r("ebitda_margin", em.get("target")), "EBITDA margin, latest FY",
+     f"{dev:+.1f} pp vs peer median" if dev is not None else "peer median n/a"),
+    ("t3", f"{pnl.get('Moderate', 0) / div:,.0f}", f"Potential savings p.a. ({mlabel}), moderate",
+     f"range {pnl.get('Conservative', 0) / div:,.0f} – {pnl.get('Optimistic', 0) / div:,.0f}"),
+    ("t2", f"{tot['ebitda_uplift_pct_moderate']:.1f} pp" if tot.get("ebitda_uplift_pct_moderate") is not None else "–",
+     "EBITDA-margin uplift, moderate", "potential, not guaranteed"),
+]
+st.markdown('<div class="tiles">' + "".join(
+    f'<div class="kpi {c}"><div class="v">{e(v)}</div><div class="l">{e(l)}</div><div class="s">{e(sub)}</div></div>'
+    for c, v, l, sub in tiles) + "</div>", unsafe_allow_html=True)
+
+PCFG = {"displayModeBar": False}
+sym = "₹" if ds["base_currency"].upper() == "INR" else ds["base_currency"] + " "
+i1, i2 = st.columns(2)
+for col, fig in ((i1, charts.score_gauge(ds["benchmark"])), (i2, charts.status_donut(ds["benchmark"])),
+                 (i1, charts.revenue_donut(ds["target_ratios"], sym)),
+                 (i2, charts.scenario_bars(an.get("savings", {}), mlabel, div))):
+    if fig is not None:
+        with col.container(border=True):
+            st.plotly_chart(fig, config=PCFG, width="stretch")
+gfig = charts.gap_chart(ds["candidate_gaps"], mlabel, div)
+wfig = charts.waterfall(an.get("savings", {}), mlabel, div=div)
+if gfig is not None or wfig is not None:
+    j1, j2 = st.columns(2)
+    for col, fig in ((j1, gfig), (j2, wfig)):
+        if fig is not None:
+            with col.container(border=True):
+                st.plotly_chart(fig, config=PCFG, width="stretch")
+hfig = charts.heatmap(ds["benchmark"], t["name"])
+if hfig is not None:
+    with st.container(border=True):
+        st.plotly_chart(hfig, config=PCFG, width="stretch")
 
 b1, b2, _ = st.columns([1.2, 1, 3])
 b1.download_button("⬇️ Download full report (HTML)", html, file_name=f"CostIQ-{t['name']}.html",

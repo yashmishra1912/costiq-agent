@@ -1,0 +1,5 @@
+.streamlit/secrets.toml
+runs/
+__pycache__/
+*.pyc
+.pytest_cache/
